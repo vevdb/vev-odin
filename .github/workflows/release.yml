@@ -1,0 +1,67 @@
+name: Release vendor bundles
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+jobs:
+  bundle:
+    name: ${{ matrix.platform }}
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        platform:
+          - darwin-aarch64
+          - darwin-x86_64
+          - linux-aarch64
+          - linux-x86_64
+          - windows-x86_64
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Package Odin and native engine
+        env:
+          PLATFORM: ${{ matrix.platform }}
+          ODIN_VERSION: ${{ github.ref_name }}
+        run: |
+          scripts/package_vendor_bundle.sh \
+            "$PLATFORM" \
+            0.1.0 \
+            "${ODIN_VERSION#v}" \
+            dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.platform }}
+          if-no-files-found: error
+          path: dist/*.zip
+
+  publish:
+    name: Publish GitHub release
+    needs: bundle
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: "*"
+          path: dist
+          merge-multiple: true
+      - name: Write checksums
+        run: |
+          cd dist
+          sha256sum *.zip > SHA256SUMS
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" \
+            --repo "${GITHUB_REPOSITORY}" \
+            --generate-notes \
+            --title "VevDB for Odin ${GITHUB_REF_NAME}" \
+            dist/*

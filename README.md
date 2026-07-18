@@ -10,8 +10,40 @@ manage SQL schemas.
 
 ## Install
 
-Odin deliberately has no official package manager. Pin this repository as a
-Git submodule or vendor its package files:
+Odin deliberately has no official package manager. The simplest installation
+is the platform bundle from the
+[VevDB for Odin releases](https://github.com/vevdb/vev-odin/releases). Each
+bundle contains the Odin package and matching VevDB native library:
+
+```text
+vev/
+  doc.odin
+  vev.odin
+  LICENSE
+  lib/
+    libvev.dylib | libvev.so | vev.dll
+```
+
+Unpack that `vev` directory under `vendor/` and import it:
+
+```odin
+import vev "vendor/vev"
+```
+
+The package owns native discovery:
+
+```odin
+library, ok := vev.load_bundled("vendor/vev")
+assert(ok)
+defer vev.unload(&library)
+```
+
+The package and engine are therefore pinned and vendored as one dependency.
+The shared library must remain under `vendor/vev/lib` while developing, and
+must be copied beside the same package-relative layout when distributing the
+application.
+
+Developers who prefer Git can pin this repository as a submodule:
 
 ```sh
 git submodule add https://github.com/vevdb/vev-odin vendor/vev
@@ -35,14 +67,15 @@ and use:
 import vev "deps:vev"
 ```
 
-Download the native SDK archive for your platform from the
-[VevDB releases](https://github.com/vevdb/vev/releases). Its `lib` directory
-contains `libvev.dylib`, `libvev.so`, or `vev.dll`.
+Source-only Git checkouts do not commit large platform binaries. Run
+`scripts/package_vendor_bundle.sh` or download the matching native SDK from the
+[VevDB releases](https://github.com/vevdb/vev/releases) when developing this
+repository itself.
 
 ## Example
 
 ```odin
-library, ok := vev.load("/path/to/libvev")
+library, ok := vev.load_bundled("vendor/vev")
 assert(ok)
 defer vev.unload(&library)
 
@@ -68,7 +101,7 @@ defaulting to `context.allocator`; the caller owns and deletes them.
 The complete runnable program is in [`examples/basic`](examples/basic):
 
 ```sh
-odin run examples/basic -- /path/to/libvev
+odin run examples/basic -- vendor/vev
 ```
 
 ## Compatibility

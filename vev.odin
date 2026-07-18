@@ -4,6 +4,7 @@
 package vev
 
 import "core:dynlib"
+import "core:os"
 import "core:strings"
 
 ABI_VERSION :: 1
@@ -57,6 +58,17 @@ load :: proc(path: string) -> (library: Library, ok: bool) {
 	}
 
 	return library, true
+}
+
+load_bundled :: proc(package_root: string) -> (library: Library, ok: bool) {
+	path, path_error := os.join_path(
+		{package_root, "lib", library_filename()},
+		context.temp_allocator,
+	)
+	if path_error != nil {
+		return {}, false
+	}
+	return load(path)
 }
 
 unload :: proc(library: ^Library) {

@@ -9,14 +9,14 @@ import "core:strings"
 import vev "../.."
 
 main :: proc() {
-	library_path := vev.library_filename()
+	package_root := "."
 	if len(os.args) > 1 {
-		library_path = os.args[1]
+		package_root = os.args[1]
 	}
 
-	library, loaded := vev.load(library_path)
+	library, loaded := vev.load_bundled(package_root)
 	if !loaded {
-		fmt.eprintln("could not load VevDB:", library_path)
+		fmt.eprintln("could not load bundled VevDB from:", package_root)
 		os.exit(1)
 	}
 	defer vev.unload(&library)
