@@ -43,7 +43,7 @@ jobs:
         env:
           PLATFORM: ${{ matrix.platform }}
         run: |
-          scripts/package_vendor_bundle.sh "$PLATFORM" 0.1.0 ci dist
+          scripts/package_vendor_bundle.sh "$PLATFORM" 0.2.0-rc.1 ci dist
           unzip -Z1 "dist/vev-odin-$PLATFORM-ci.zip"
           unzip -Z1 "dist/vev-odin-$PLATFORM-ci.zip" | grep -E 'vev[/\\]vev[.]odin'
           unzip -Z1 "dist/vev-odin-$PLATFORM-ci.zip" | grep -E 'vev[/\\]lib[/\\]'
