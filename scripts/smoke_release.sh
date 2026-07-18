@@ -53,7 +53,11 @@ expected="$(
   echo "$ARCHIVE is not listed in the release checksums" >&2
   exit 1
 }
-actual="$(shasum -a 256 "$TMP_DIR/$ARCHIVE" | awk '{print $1}')"
+if command -v shasum >/dev/null 2>&1; then
+  actual="$(shasum -a 256 "$TMP_DIR/$ARCHIVE" | awk '{print $1}')"
+else
+  actual="$(sha256sum "$TMP_DIR/$ARCHIVE" | awk '{print $1}')"
+fi
 [[ "$actual" == "$expected" ]] || {
   echo "checksum mismatch for $ARCHIVE" >&2
   exit 1
