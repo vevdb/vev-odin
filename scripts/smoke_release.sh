@@ -73,6 +73,6 @@ LIB_PATH="$TMP_DIR/sdk/vev-$VERSION/lib/$LIB_NAME"
 odin check "$ROOT" -no-entry-point
 odin build "$ROOT/examples/basic" -out:"$TMP_DIR/vev_odin_smoke$EXE_SUFFIX"
 PATH="$(dirname "$LIB_PATH"):$PATH" \
-  "$TMP_DIR/vev_odin_smoke$EXE_SUFFIX" "$LIB_PATH" >/dev/null
+  "$TMP_DIR/vev_odin_smoke$EXE_SUFFIX" "$(dirname "$(dirname "$LIB_PATH")")" >/dev/null
 
 echo ":vev-odin-release-ok"

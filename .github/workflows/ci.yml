@@ -39,3 +39,11 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
       - name: Smoke published VevDB SDK
         run: scripts/smoke_release.sh
+      - name: Verify vendor bundle
+        env:
+          PLATFORM: ${{ matrix.platform }}
+        run: |
+          scripts/package_vendor_bundle.sh "$PLATFORM" 0.1.0 ci dist
+          unzip -Z1 "dist/vev-odin-$PLATFORM-ci.zip"
+          unzip -Z1 "dist/vev-odin-$PLATFORM-ci.zip" | grep -E 'vev[/\\]vev[.]odin'
+          unzip -Z1 "dist/vev-odin-$PLATFORM-ci.zip" | grep -E 'vev[/\\]lib[/\\]'
