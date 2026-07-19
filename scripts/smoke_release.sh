@@ -5,8 +5,8 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-TAG="${VEV_RELEASE_TAG:-v0.2.0-rc.1}"
-VERSION="${VEV_VERSION:-0.2.0-rc.1}"
+TAG="${VEV_RELEASE_TAG:-v0.2.0-rc.2}"
+VERSION="${VEV_VERSION:-0.2.0-rc.2}"
 REPOSITORY="${VEV_REPOSITORY:-vevdb/vev}"
 TMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/vev-odin-release.XXXXXX")"
 
@@ -73,6 +73,8 @@ LIB_PATH="$TMP_DIR/sdk/vev-$VERSION/lib/$LIB_NAME"
 odin check "$ROOT" -no-entry-point
 odin build "$ROOT/examples/basic" -out:"$TMP_DIR/vev_odin_smoke$EXE_SUFFIX"
 PATH="$(dirname "$LIB_PATH"):$PATH" \
-  "$TMP_DIR/vev_odin_smoke$EXE_SUFFIX" "$(dirname "$(dirname "$LIB_PATH")")" >/dev/null
+  "$TMP_DIR/vev_odin_smoke$EXE_SUFFIX" \
+  "$(dirname "$(dirname "$LIB_PATH")")" \
+  "$TMP_DIR/smoke.vev" >/dev/null
 
 echo ":vev-odin-release-ok"
