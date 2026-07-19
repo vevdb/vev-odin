@@ -98,6 +98,38 @@ defer delete(rows)
 Returned Odin strings use the allocator passed to `transact` or `query`,
 defaulting to `context.allocator`; the caller owns and deletes them.
 
+Durable stores use the same transaction shape and return explicit result
+handles for typed traversal:
+
+```odin
+connection, ok := vev.connect(&library, "app.vev")
+assert(ok)
+defer vev.close(&connection)
+
+tx, ok := vev.transact(
+	&connection,
+	`[{:db/id 1 :user/name "Ada"}]`,
+)
+assert(ok)
+defer delete(tx)
+
+rows, ok := vev.query_rows(
+	&connection,
+	`[:find ?name :where [?e :user/name ?name]]`,
+)
+assert(ok)
+defer vev.close(&rows)
+
+name, ok := vev.value_edn(&rows, 0, 0)
+assert(ok)
+defer delete(name)
+```
+
+`row_count`, `value_count`, and `value_edn` let applications traverse results
+without parsing a rendered result set. A fresh `query_rows` call takes a fresh
+immutable database snapshot, so another process or the VevDB CLI can use the
+same store concurrently.
+
 The complete runnable program is in [`examples/basic`](examples/basic):
 
 ```sh
@@ -106,14 +138,15 @@ odin run examples/basic -- vendor/vev
 
 ## Compatibility
 
+- Bundled VevDB release: `0.2.0-rc.2`
 - VevDB C ABI version: `1`
 - Tested Odin baseline: `dev-2026-05`
 - CI: macOS ARM64/x64, Linux ARM64/x64, and Windows x64
 
-The package surface currently covers loading, in-memory connections, EDN
-transactions, and Datalog queries. Durable connections, typed result handles,
-prepared queries, and pull are the next API layers; the underlying VevDB C ABI
-already supports them.
+The package surface covers loading, in-memory and durable connections, EDN
+transactions, Datalog queries, and typed traversal of durable query rows.
+Prepared-query reuse, pull, entity views, and typed transaction builders are
+the next API layers; the underlying VevDB C ABI already supports them.
 
 ## Development
 
