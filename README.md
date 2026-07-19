@@ -126,9 +126,8 @@ defer delete(name)
 ```
 
 `row_count`, `value_count`, and `value_edn` let applications traverse results
-without parsing a rendered result set. A fresh `query_rows` call takes a fresh
-immutable database snapshot, so another process or the VevDB CLI can use the
-same store concurrently.
+without parsing a rendered result set. Each result handle owns the immutable
+database basis used for that query.
 
 The complete runnable program is in [`examples/basic`](examples/basic):
 
