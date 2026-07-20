@@ -131,6 +131,52 @@ Use `value`, `kind`, `item`, `get`, and the `as_*` procedures for typed
 traversal, or `edn` when rendered EDN is the desired boundary. Each durable
 query captures an immutable database basis.
 
+Retain a database value explicitly when working across time:
+
+```odin
+database, ok := vev.db(&connection)
+assert(ok)
+defer vev.close(&database)
+
+earlier, ok := vev.as_of(&database, transaction_t)
+assert(ok)
+defer vev.close(&earlier)
+
+recent, ok := vev.since(&database, transaction_t)
+assert(ok)
+defer vev.close(&recent)
+
+audit, ok := vev.history(&database)
+assert(ok)
+defer vev.close(&audit)
+
+result, ok := vev.query(
+	&audit,
+	`[:find ?value ?tx ?added
+	  :where [?e :item/value ?value ?tx ?added]]`,
+)
+```
+
+`as_of` and `since` accept either a transaction coordinate (`u64`) or
+`time.Time`. The returned `DB` values are immutable and independently owned.
+`basis_t`, `next_t`, `as_of_t`, `since_t`, and `is_history` expose the same
+database metadata as Datomic.
+
+The transaction log uses the same inclusive-start, exclusive-end contract:
+
+```odin
+log_value, ok := vev.log(&connection)
+assert(ok)
+defer vev.close(&log_value)
+
+transactions, ok := vev.tx_range(&log_value)
+assert(ok)
+defer vev.close(&transactions)
+```
+
+Pass `u64` transaction coordinates or `time.Time` values as the optional start
+and end arguments. Each transaction is a map containing `:t` and `:data`.
+
 The complete runnable program is in [`examples/basic`](examples/basic):
 
 ```sh
@@ -144,10 +190,11 @@ odin run examples/basic -- vendor/vev
 - Tested Odin baseline: `dev-2026-05`
 - CI: macOS ARM64/x64, Linux ARM64/x64, and Windows x64
 
-The package surface covers loading, in-memory and durable connections, EDN
+The package surface covers loading, in-memory and durable connections,
+immutable and historical database values, transaction-log ranges, EDN
 transactions, storage-neutral Datalog queries, and typed query-value traversal.
-Prepared-query reuse, pull, entity views, and typed transaction builders are
-the next API layers; the underlying VevDB C ABI already supports them.
+Prepared-query reuse, pull, entity views, and typed transaction builders remain
+future API layers; the underlying VevDB C ABI already supports them.
 
 ## Development
 
