@@ -37,13 +37,12 @@ jobs:
       - uses: laytan/setup-odin@v2.12.2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Smoke published VevDB SDK
-        run: scripts/smoke_release.sh
-      - name: Verify vendor bundle
-        env:
-          PLATFORM: ${{ matrix.platform }}
+      - name: Check Odin package
+        run: odin check . -no-entry-point
+      - name: Verify package matches VevDB main
         run: |
-          scripts/package_vendor_bundle.sh "$PLATFORM" 0.2.0-rc.2 ci dist
-          unzip -Z1 "dist/vev-odin-$PLATFORM-ci.zip"
-          unzip -Z1 "dist/vev-odin-$PLATFORM-ci.zip" | grep -E 'vev[/\\]vev[.]odin'
-          unzip -Z1 "dist/vev-odin-$PLATFORM-ci.zip" | grep -E 'vev[/\\]lib[/\\]'
+          curl --fail --location --retry 5 --retry-all-errors \
+            --silent --show-error \
+            --output vev-main.odin \
+            https://raw.githubusercontent.com/vevdb/vev/main/clients/odin/vev/vev.odin
+          cmp vev.odin vev-main.odin

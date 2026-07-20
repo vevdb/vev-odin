@@ -87,19 +87,19 @@ tx, ok := vev.transact(&connection, `[{:db/id 1 :user/name "Ada"}]`)
 assert(ok)
 defer delete(tx)
 
-rows, ok := vev.query(
+result, ok := vev.query(
 	&connection,
 	`[:find ?name :where [?e :user/name ?name]]`,
 )
 assert(ok)
-defer delete(rows)
+defer vev.close(&result)
 ```
 
-Returned Odin strings use the allocator passed to `transact` or `query`,
-defaulting to `context.allocator`; the caller owns and deletes them.
+`query` returns owned `Data`. Its value has the same shape requested by
+Datomic's `:find`: relation, collection, tuple, or scalar. Close the `Data`
+after use; any `Value` views borrowed from it remain valid until then.
 
-Durable stores use the same transaction shape and return explicit result
-handles for typed traversal:
+Durable stores use the same `transact` and `query` API:
 
 ```odin
 connection, ok := vev.connect(&library, "app.vev")
@@ -113,21 +113,23 @@ tx, ok := vev.transact(
 assert(ok)
 defer delete(tx)
 
-rows, ok := vev.query_rows(
+result, ok := vev.query(
 	&connection,
-	`[:find ?name :where [?e :user/name ?name]]`,
+	`[:find ?name . :where [?e :user/name ?name]]`,
 )
 assert(ok)
-defer vev.close(&rows)
+defer vev.close(&result)
 
-name, ok := vev.value_edn(&rows, 0, 0)
+value, ok := vev.value(&result)
+assert(ok)
+name, ok := vev.as_string(value)
 assert(ok)
 defer delete(name)
 ```
 
-`row_count`, `value_count`, and `value_edn` let applications traverse results
-without parsing a rendered result set. Each result handle owns the immutable
-database basis used for that query.
+Use `value`, `kind`, `item`, `get`, and the `as_*` procedures for typed
+traversal, or `edn` when rendered EDN is the desired boundary. Each durable
+query captures an immutable database basis.
 
 The complete runnable program is in [`examples/basic`](examples/basic):
 
@@ -137,13 +139,13 @@ odin run examples/basic -- vendor/vev
 
 ## Compatibility
 
-- Bundled VevDB release: `0.2.0-rc.2`
+- Bundled VevDB release: `0.2.0-rc.3` (not yet published)
 - VevDB C ABI version: `1`
 - Tested Odin baseline: `dev-2026-05`
 - CI: macOS ARM64/x64, Linux ARM64/x64, and Windows x64
 
 The package surface covers loading, in-memory and durable connections, EDN
-transactions, Datalog queries, and typed traversal of durable query rows.
+transactions, storage-neutral Datalog queries, and typed query-value traversal.
 Prepared-query reuse, pull, entity views, and typed transaction builders are
 the next API layers; the underlying VevDB C ABI already supports them.
 
