@@ -45,4 +45,5 @@ jobs:
             --silent --show-error \
             --output vev-main.odin \
             https://raw.githubusercontent.com/vevdb/vev/main/clients/odin/vev/vev.odin
-          cmp vev.odin vev-main.odin
+          git diff --no-index --ignore-space-at-eol --exit-code \
+            vev.odin vev-main.odin
