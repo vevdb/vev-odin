@@ -95,6 +95,8 @@ assert(ok)
 defer vev.close(&result)
 ```
 
+`open_memory` remains as a compatibility alias for `create_conn`.
+
 `query` returns owned `Data`. Its value has the same shape requested by
 Datomic's `:find`: relation, collection, tuple, or scalar. Close the `Data`
 after use; any `Value` views borrowed from it remain valid until then.
