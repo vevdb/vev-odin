@@ -97,6 +97,26 @@ defer vev.close(&result)
 
 `open_memory` remains as a compatibility alias for `create_conn`.
 
+## Direct SQLite
+
+The package can open separate application SQLite files using the SQLite
+bundled with VevDB:
+
+```odin
+db, ok := vev.sqlite_open(&library, "application.sqlite")
+assert(ok)
+defer vev.sqlite_close(&db)
+
+code := vev.sqlite_exec(
+	&db,
+	"create table item(key text primary key, value blob)",
+)
+assert(code == vev.SQLITE_OK)
+```
+
+See the
+[Direct SQLite guide](https://github.com/vevdb/vev/blob/main/docs/sqlite.md).
+
 `query` returns owned `Data`. Its value has the same shape requested by
 Datomic's `:find`: relation, collection, tuple, or scalar. Close the `Data`
 after use; any `Value` views borrowed from it remain valid until then.
