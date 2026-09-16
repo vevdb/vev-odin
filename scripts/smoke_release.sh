@@ -3,8 +3,8 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-TAG="${VEV_RELEASE_TAG:-v0.2.2}"
-VERSION="${VEV_VERSION:-0.2.2}"
+TAG="${VEV_RELEASE_TAG:-v0.4.0}"
+VERSION="${VEV_VERSION:-0.4.0}"
 REPOSITORY="${VEV_REPOSITORY:-vevdb/vev}"
 TMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/vev-odin-release.XXXXXX")"
 

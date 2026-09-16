@@ -215,8 +215,8 @@ odin run examples/basic -- vendor/vev
 
 ## Compatibility
 
-- Bundled VevDB release: `0.2.2`
-- VevDB C ABI version: `1`
+- Bundled VevDB release: `0.4.0`
+- VevDB C ABI version: `3`
 - Tested Odin baseline: `dev-2026-05`
 - CI: macOS ARM64/x64, Linux ARM64/x64, and Windows x64
 

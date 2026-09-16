@@ -2,10 +2,11 @@ package vev
 
 import "core:dynlib"
 import "core:os"
+import "base:runtime"
 import "core:strings"
 import "core:time"
 
-ABI_VERSION :: 1
+ABI_VERSION :: 3
 TX_PARTITION_BASE :: u64(4_611_686_018_427_387_904)
 
 @(private)
@@ -22,7 +23,15 @@ API :: struct {
 	connection_ok: proc "c" (conn: rawptr) -> bool `dynlib:"vev_connection_ok"`,
 	connection_error: proc "c" (conn: rawptr) -> cstring `dynlib:"vev_connection_error"`,
 	connection_basis_t: proc "c" (conn: rawptr) -> u64 `dynlib:"vev_connection_basis_t"`,
+	storage_basis_t: proc "c" (path: cstring, basis_out: ^u64) -> cstring `dynlib:"vev_storage_basis_t"`,
+	storage_head_basis_t: proc "c" (path: cstring, basis_out: ^u64) -> cstring `dynlib:"vev_storage_head_basis_t"`,
+	storage_indexed_basis_t: proc "c" (path: cstring, basis_out: ^u64) -> cstring `dynlib:"vev_storage_indexed_basis_t"`,
+	connection_backup: proc "c" (conn: rawptr, destination_path: cstring, basis_out: ^u64) -> cstring `dynlib:"vev_connection_backup"`,
 	connection_tx_count: proc "c" (conn: rawptr) -> u64 `dynlib:"vev_connection_tx_count"`,
+	connection_ensure_resident: proc "c" (conn: rawptr) -> bool `dynlib:"vev_connection_ensure_resident"`,
+	connection_tx_profile_reset: proc "c" (conn: rawptr) -> bool `dynlib:"vev_connection_tx_profile_reset"`,
+	connection_tx_profile_disable: proc "c" (conn: rawptr) `dynlib:"vev_connection_tx_profile_disable"`,
+	connection_tx_profile_value: proc "c" (conn: rawptr) -> rawptr `dynlib:"vev_connection_tx_profile_value"`,
 	connection_tx_ids: proc "c" (conn: rawptr) -> rawptr `dynlib:"vev_connection_tx_ids"`,
 	connection_close: proc "c" (conn: rawptr) `dynlib:"vev_connection_close"`,
 	connection_db: proc "c" (conn: rawptr) -> rawptr `dynlib:"vev_connection_db"`,
@@ -49,6 +58,7 @@ API :: struct {
 	with_edn_report: proc "c" (db: rawptr, tx_text: cstring) -> rawptr `dynlib:"vev_with_edn_report"`,
 	db_with_edn: proc "c" (db: rawptr, tx_text: cstring) -> rawptr `dynlib:"vev_db_with_edn"`,
 	db_query_value_with_inputs: proc "c" (db: rawptr, query_text, inputs_text: cstring) -> rawptr `dynlib:"vev_db_query_value_with_inputs"`,
+	db_query_page_value: proc "c" (db: rawptr, query_text, index_attr, prefix_text, after_text: cstring, has_after: bool, limit: i64) -> rawptr `dynlib:"vev_db_query_page_value"`,
 	db_entity: proc "c" (db: rawptr, entity: u64) -> rawptr `dynlib:"vev_db_entity"`,
 	db_entity_lookup_ref_string: proc "c" (db: rawptr, attr, value: cstring) -> rawptr `dynlib:"vev_db_entity_lookup_ref_string"`,
 	db_entity_lookup_ref_edn: proc "c" (db: rawptr, attr, value_edn: cstring) -> rawptr `dynlib:"vev_db_entity_lookup_ref_edn"`,
@@ -203,6 +213,15 @@ Kind :: enum int {
 	Instant,
 }
 
+Query_Page_Error_Code :: enum int {
+	None,
+	Stale_Basis,
+	Invalid_Request,
+	Unsupported,
+	Storage_Error,
+	Internal_Error,
+}
+
 library_filename :: proc() -> string {
 	when ODIN_OS == .Darwin {
 		return "libvev.dylib"
@@ -232,7 +251,12 @@ load :: proc(path: string) -> (library: Library, ok: bool) {
 	   library.api.connection_ok == nil ||
 	   library.api.connection_error == nil ||
 	   library.api.connection_basis_t == nil ||
+	   library.api.storage_basis_t == nil ||
+	   library.api.storage_head_basis_t == nil ||
+	   library.api.storage_indexed_basis_t == nil ||
+	   library.api.connection_backup == nil ||
 	   library.api.connection_tx_count == nil ||
+	   library.api.connection_ensure_resident == nil ||
 	   library.api.connection_tx_ids == nil ||
 	   library.api.connection_close == nil ||
 	   library.api.connection_db == nil ||
@@ -263,6 +287,7 @@ load :: proc(path: string) -> (library: Library, ok: bool) {
 	   library.api.with_edn_report == nil ||
 	   library.api.db_with_edn == nil ||
 	   library.api.db_query_value_with_inputs == nil ||
+	   library.api.db_query_page_value == nil ||
 	   library.api.db_entity == nil ||
 	   library.api.db_entity_lookup_ref_string == nil ||
 	   library.api.db_entity_lookup_ref_edn == nil ||
@@ -467,6 +492,98 @@ connection_basis_t :: proc(connection: ^Durable_Connection) -> (t: u64, ok: bool
 	return connection.library.api.connection_basis_t(connection.handle), true
 }
 
+// storage_basis_t is the compatibility name for storage_indexed_basis_t.
+storage_basis_t :: proc(
+	library: ^Library,
+	path: string,
+	allocator := context.allocator,
+) -> (basis_t: u64, ok: bool, error: string) {
+	if library == nil || library.api.storage_basis_t == nil {
+		return 0, false, strings.clone("invalid Vev library", allocator)
+	}
+	basis: u64
+	path_text := strings.clone_to_cstring(path, context.temp_allocator)
+	native_error := library.api.storage_basis_t(path_text, &basis)
+	if native_error == nil {
+		return 0, false, strings.clone("could not read durable basis", allocator)
+	}
+	defer library.api.string_free(native_error)
+	message := string(native_error)
+	if message != "" {
+		return 0, false, strings.clone(message, allocator)
+	}
+	return basis, true, strings.clone("", allocator)
+}
+
+storage_head_basis_t :: proc(
+	library: ^Library,
+	path: string,
+	allocator := context.allocator,
+) -> (basis_t: u64, ok: bool, error: string) {
+	if library == nil {
+		return 0, false, strings.clone("invalid Vev library", allocator)
+	}
+	return storage_basis_t_with(library, path, library.api.storage_head_basis_t, allocator)
+}
+
+storage_indexed_basis_t :: proc(
+	library: ^Library,
+	path: string,
+	allocator := context.allocator,
+) -> (basis_t: u64, ok: bool, error: string) {
+	if library == nil {
+		return 0, false, strings.clone("invalid Vev library", allocator)
+	}
+	return storage_basis_t_with(library, path, library.api.storage_indexed_basis_t, allocator)
+}
+
+@(private)
+storage_basis_t_with :: proc(
+	library: ^Library,
+	path: string,
+	read_basis: proc "c" (path: cstring, basis_out: ^u64) -> cstring,
+	allocator: runtime.Allocator,
+) -> (basis_t: u64, ok: bool, error: string) {
+	if library == nil || read_basis == nil {
+		return 0, false, strings.clone("invalid Vev library", allocator)
+	}
+	basis: u64
+	path_text := strings.clone_to_cstring(path, context.temp_allocator)
+	native_error := read_basis(path_text, &basis)
+	if native_error == nil {
+		return 0, false, strings.clone("could not read durable basis", allocator)
+	}
+	defer library.api.string_free(native_error)
+	message := string(native_error)
+	if message != "" {
+		return 0, false, strings.clone(message, allocator)
+	}
+	return basis, true, strings.clone("", allocator)
+}
+
+// backup creates a consistent, independently openable durable store at a new
+// path. It never overwrites an existing destination. The returned basis is the
+// exact latest committed transaction contained in that snapshot.
+backup :: proc(
+	connection: ^Durable_Connection,
+	destination_path: string,
+	allocator := context.allocator,
+) -> (basis_t: u64, ok: bool, error: string) {
+	if connection == nil || connection.handle == nil {
+		return 0, false, strings.clone("invalid durable connection", allocator)
+	}
+	path_text := strings.clone_to_cstring(destination_path, context.temp_allocator)
+	native_error := connection.library.api.connection_backup(connection.handle, path_text, &basis_t)
+	if native_error == nil {
+		return 0, false, strings.clone("Vev snapshot returned no result", allocator)
+	}
+	defer connection.library.api.string_free(native_error)
+	if len(string(native_error)) > 0 {
+		return 0, false, strings.clone(string(native_error), allocator)
+	}
+	return basis_t, true, strings.clone("", allocator)
+}
+
 connection_tx_count :: proc(connection: ^Durable_Connection) -> (count: u64, ok: bool) {
 	if connection == nil || connection.handle == nil {
 		return 0, false
@@ -502,6 +619,41 @@ compact_indexes :: proc(connection: ^Durable_Connection) -> bool {
 		return false
 	}
 	return connection.library.api.connection_compact_indexes(connection.handle)
+}
+
+ensure_resident :: proc(connection: ^Durable_Connection) -> bool {
+	if connection == nil || connection.handle == nil {
+		return false
+	}
+	return connection.library.api.connection_ensure_resident(connection.handle)
+}
+
+reset_tx_profile :: proc(connection: ^Durable_Connection) -> bool {
+	if connection == nil || connection.handle == nil ||
+	   connection.library.api.connection_tx_profile_reset == nil {
+		return false
+	}
+	return connection.library.api.connection_tx_profile_reset(connection.handle)
+}
+
+disable_tx_profile :: proc(connection: ^Durable_Connection) {
+	if connection == nil || connection.handle == nil ||
+	   connection.library.api.connection_tx_profile_disable == nil {
+		return
+	}
+	connection.library.api.connection_tx_profile_disable(connection.handle)
+}
+
+tx_profile :: proc(connection: ^Durable_Connection) -> (result: Data, ok: bool) {
+	if connection == nil || connection.handle == nil ||
+	   connection.library.api.connection_tx_profile_value == nil {
+		return {}, false
+	}
+	handle := connection.library.api.connection_tx_profile_value(connection.handle)
+	if handle == nil {
+		return {}, false
+	}
+	return Data{library = connection.library, handle = handle}, true
 }
 
 maintain_indexes :: proc(connection: ^Durable_Connection, max_steps: int) -> bool {
@@ -1269,6 +1421,61 @@ query_db :: proc(
 		return {}, false
 	}
 	return Data{library = database.library, handle = handle}, true
+}
+
+query_page_db :: proc(
+	database: ^DB,
+	query_text, index_attr, prefix_text: string,
+	after_text := "nil",
+	has_after := false,
+	limit: i64 = 100,
+) -> (result: Data, ok: bool) {
+	if database == nil || database.library == nil {
+		return {}, false
+	}
+	handle := database.library.api.db_query_page_value(
+		database.handle,
+		strings.clone_to_cstring(query_text, context.temp_allocator),
+		strings.clone_to_cstring(index_attr, context.temp_allocator),
+		strings.clone_to_cstring(prefix_text, context.temp_allocator),
+		strings.clone_to_cstring(after_text, context.temp_allocator),
+		has_after,
+		limit,
+	)
+	if handle == nil {
+		return {}, false
+	}
+	return Data{library = database.library, handle = handle}, true
+}
+
+query_page_error_code :: proc(page: ^Data) -> (code: Query_Page_Error_Code, ok: bool) {
+	root, root_ok := value(page)
+	if !root_ok {
+		return .Internal_Error, false
+	}
+	code_value, code_ok := get(root, ":error-code")
+	if !code_ok || kind(code_value) != .Keyword {
+		return .Internal_Error, false
+	}
+	text, text_ok := as_string(code_value, context.temp_allocator)
+	if !text_ok {
+		return .Internal_Error, false
+	}
+	switch text {
+	case ":none":
+		return .None, true
+	case ":stale-basis":
+		return .Stale_Basis, true
+	case ":invalid-request":
+		return .Invalid_Request, true
+	case ":unsupported":
+		return .Unsupported, true
+	case ":storage-error":
+		return .Storage_Error, true
+	case ":internal-error":
+		return .Internal_Error, true
+	}
+	return .Internal_Error, false
 }
 
 prepare :: proc(library: ^Library, query_text: string) -> (query: Prepared_Query, ok: bool) {
